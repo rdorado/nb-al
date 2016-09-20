@@ -1,0 +1,96 @@
+import pymc as pc  
+import pymc.Matplot as pt  
+import numpy as np  
+from scipy.stats import bernoulli  
+import random as rn  
+
+def wordDict(collection):  
+  word_id  = {}  
+  idCounter = 0  
+  for d in collection:  
+    for w in d:  
+      if (w not in word_id):  
+         word_id[w] = idCounter  
+         idCounter+=1  
+  return word_id  
+
+def toNpArray(word_id, collection):  
+  ds = []  
+  for d in collection:  
+     ws = []  
+     for w in d:  
+        ws.append(word_id.get(w,0))  
+     ds.append(ws)  
+  return np.array(ds) 
+
+'''
+def model(data):
+  theta_prior = pc.Beta('theta_prior', alpha=1.0, beta=1.0)
+  coin = pc.Bernoulli('coin', p=theta_prior, value=data, observed=True)
+  mod = pc.Model([theta_prior, coin])  
+  return mod
+
+
+def generateSample(t, s):  
+   return bernoulli.rvs(t, size=s)  
+
+
+def mcmcTraces(data):  
+   mod = model(data)  
+   mc = pc.MCMC(mod)  
+   mc.sample(iter=5000, burn=1000)  
+   return mc.trace('theta_prior')[:]  
+'''
+
+docs = [["sepak","bola","sepak","bola","bola","bola","sepak"],  
+         ["uang","ekonomi","uang","uang","uang","ekonomi","ekonomi"],  
+         ["sepak","bola","sepak","bola","sepak","sepak"],  
+         ["ekonomi","ekonomi","uang","uang"],  
+         ["sepak","uang","ekonomi"],  
+         ["komputer","komputer","teknologi","teknologi","komputer","teknologi"],  
+         ["teknologi","komputer","teknologi"]]  
+
+'''
+sampleSize = 1000  
+theta = 0.7 
+data = generateSample(theta, sampleSize) 
+trs = mcmcTraces(data) 
+pt.histogram(trs, "theta prior; size=100", datarange=(0.2,0.9)) 
+
+est_theta = np.mean(trs)  
+print(est_theta)  
+'''
+word_dict = wordDict(docs)  
+collection = toNpArray(word_dict,docs)  
+
+K = 3  
+V = len(word_dict)  
+D = len(collection)  
+
+alpha = np.ones(K)
+beta = np.ones(V)  
+Nd = [len(doc) for doc in collection]  
+
+#word distribution for each topic  
+phi = pc.Container([pc.CompletedDirichlet("phi_%i" % k, pc.Dirichlet("pphi_%i" % k, theta=beta)) for k in range(K)])
+
+#topic distribution in the collection  
+theta = pc.CompletedDirichlet("theta", pc.Dirichlet("ptheta", theta=alpha)) 
+
+#for each document, draw a topic z_m  
+z = pc.Container([pc.Categorical("z_%i" % d, p = theta, value = rn.randint(0, K-1)) for d in range(D)])  
+
+#for each document, draw words, based on topic z_m 
+w = pc.Container([pc.Categorical("w_%i_%i" % (d,i), p = pc.Lambda("phi_z_%i_%i" % (d,i), lambda z=z[d], phi=phi : phi[z]), value=collection[d][i], observed=True) for d in range(D) for i in range(Nd[d])])  
+   
+model = pc.Model([theta, phi, z, w])  
+
+mcmc = pc.MCMC(model)  
+mcmc.sample(iter=5000, burn=1000)
+
+for d in range(D):  
+    print(mcmc.trace('z_%i'%d)[3999]) 
+
+print collection
+
+

@@ -1,0 +1,138 @@
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn import mixture
+
+from collections import Counter
+import numpy as np
+import pymc as pm
+import sys
+
+categories = ['alt.atheism', 'soc.religion.christian', 'comp.graphics', 'sci.med']
+twenty_train = fetch_20newsgroups(subset='train', categories=categories, shuffle=True, random_state=42)
+twenty_test = fetch_20newsgroups(subset='test',categories=categories, shuffle=True, random_state=42)      
+
+nonlab_train_data = twenty_train.data
+nonlab_train_targets = twenty_train.target
+test_data = twenty_test.data
+test_targets = twenty_test.target
+lab_train_data = []
+lab_train_targets =[]
+N_nonlab = len(nonlab_train_data)
+N_lab = 0
+
+targset = set(nonlab_train_targets)
+ncat = len(targset)
+
+while len(targset) > 0:
+  next = int(np.random.random()*N_nonlab)
+  target = nonlab_train_targets[next]
+
+  if target in targset:
+    targset.remove(target)
+
+    lab_train_data.append(nonlab_train_data[next])
+    lab_train_targets.append(nonlab_train_targets[next])
+
+    np.delete(nonlab_train_data,next)
+    np.delete(nonlab_train_targets,next)
+
+targset = set(nonlab_train_targets)
+
+'''
+#select an start point to query
+next = int(np.random.random()*N_nonlab)
+lab_train_data.append(nonlab_train_data[next])
+lab_train_targets.append(nonlab_train_targets[next])
+
+np.delete(nonlab_train_data,next)
+np.delete(nonlab_train_targets,next)
+'''
+
+relevant = Counter(test_targets) 
+counts = np.ones(4)
+for i in range(200):
+  count_vect = CountVectorizer()
+  X_train = count_vect.fit_transform(lab_train_data)
+  clf = MultinomialNB().fit(X_train, lab_train_targets)  
+
+  X_new = count_vect.transform(test_data)
+  predicted = clf.predict(X_new)
+  
+  successful_array = [] 
+  for j in range(len(predicted)):
+    if predicted[j] == test_targets[j]:
+      successful_array.append(predicted[j])
+
+  successful = Counter(successful_array)
+  retrieved = Counter(predicted)
+
+  pmacro = 0
+  rmacro = 0
+  print successful," ",relevant," ",retrieved
+  for cat in targset:
+    if retrieved[cat]!=0 : pmacro += float(successful[cat])/retrieved[cat]
+    if relevant[cat]!=0 : rmacro += float(successful[cat])/relevant[cat]
+
+  pmacro = pmacro/ncat
+  rmacro = rmacro/ncat
+  f1score = 2*(pmacro*rmacro)/(pmacro+rmacro)
+  #print str(pmacro)+",",
+  #print str(rmacro)+",",
+  #print str(f1score)+",",
+
+  #print 'Accuracy ',i,": ",np.mean(predicted == test_targets)," ",counts," ",len(nonlab_train_data)
+  print i," ",np.mean(predicted == test_targets)," ",pmacro," ",rmacro," ",f1score
+
+  N_nonlab = len(nonlab_train_data)
+
+  nonlab_X_train = count_vect.transform(nonlab_train_data)
+  probs = clf.predict_proba(nonlab_X_train)
+  #for j in range(len(nonlab_train_data)):
+  #  prob = clf.predict_log_proba(nonlab_train_data)
+  
+  next = -1
+  best_class = -1
+  min_pr_all = sys.maxint
+  for i, arr_probs in enumerate(probs):
+    min_pr = sys.maxint
+    temp_best = -1
+ 
+    for j in range(len(arr_probs)):
+      if min_pr > arr_probs[j]:
+        min_pr = arr_probs[j]
+        temp_best = j
+
+    if min_pr_all > min_pr:
+      best_class = temp_best
+      next = i
+
+  print "-->", next," ",+best_class,"\n"
+
+  #next = int(np.random.random()*N_nonlab)
+  lab_train_data.append(nonlab_train_data[next])
+  lab_train_targets.append(nonlab_train_targets[next])
+  counts[nonlab_train_targets[next]]+=1
+
+  nonlab_train_data = np.delete(nonlab_train_data,next)
+  nonlab_train_targets = np.delete(nonlab_train_targets,next)
+
+
+
+
+
+
+
+
+
+
+'''
+
+
+
+
+
+
+
+
+'''

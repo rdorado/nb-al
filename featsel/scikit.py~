@@ -1,0 +1,55 @@
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.datasets import load_iris
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2
+from sklearn.svm import SVC
+from sklearn.feature_selection import RFE
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.svm import LinearSVC 
+from sklearn.feature_selection import SelectFromModel
+
+from scipy.sparse import lil_matrix
+from scipy.sparse import csr_matrix
+
+# Load data
+iris = load_iris()
+X, y = iris.data, iris.target
+print "Iris shape: "+str(X.shape)
+
+
+# Variance reduction (Binary)
+#X_tmp = [[0, 0, 1], [0, 1, 0], [1, 0, 0], [0, 1, 1], [0, 1, 0], [0, 1, 1]]
+X_tmp = csr_matrix(([1,1,1,1,1,1,1,1], ([0,1,2,3,3,4,5,5], [2,1,0,1,2,1,1,2])), shape=(6, 3))
+sel = VarianceThreshold(threshold=(.8 * (1 - .8)))
+sel.fit_transform(X_tmp)
+
+
+# Univariate feature selection
+# Options: f_classif,chi2,f_regression,SelectPercentile,SelectFpr,SelectFdr,SelectFwe,GenericUnivariateSelect
+X_new = SelectKBest(chi2, k=2).fit_transform(X, y)
+X_new.shape
+
+
+# Recursive feature elimination
+svc = SVC(kernel="linear", C=1)
+rfe = RFE(estimator=svc, n_features_to_select=3, step=1)
+rfe.fit(X, y)
+#ranking = rfe.ranking_.reshape(digits.images[0].shape)
+
+
+# L1-based feature selection
+lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(X, y)
+model = SelectFromModel(lsvc, prefit=True)
+X_new = model.transform(X)
+X_new.shape
+
+
+# Tree-based feature selection
+clf = ExtraTreesClassifier()
+clf = clf.fit(X, y)
+clf.feature_importances_
+model = SelectFromModel(clf, prefit=True)
+X_new = model.transform(X)
+X_new.shape
+
+
